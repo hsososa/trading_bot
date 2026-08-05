@@ -100,7 +100,7 @@ gantt
     dateFormat  YYYY-MM-DD
     title Execution Roadmap
     section Phase 1: Storage & Ingestion
-    Setup Project & DuckDB Schema     :a1, 2026-08-10, 3d
+    Setup Project & DuckDB Schema     :a1, 2026-08-21, 3d
     Implement Async WS & Batch Queue  :a2, after a1, 4d
 
     section Phase 2: Engine & Risk Logic
