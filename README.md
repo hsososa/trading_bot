@@ -1,152 +1,183 @@
-# Algorithmic Trading Bot & Real-Time Analytics Pipeline
+# Microsoft Fabric 35-Day Trial Execution Plan: Real-Time Algorithmic Trading Architecture
 
-> **Project Scope:** High-concurrency streaming market data engine with embedded DuckDB persistence, technical indicator computation, automated order execution, and continuous monitoring.
+> **Objective:** Build and evaluate an enterprise-grade real-time trading analytics and risk management platform within a 35-day Microsoft Fabric trial window. This architecture mirrors the local Python/DuckDB engine by using Fabric Real-Time Intelligence (RTI), OneLake Delta tables, PySpark, and Direct Lake Power BI.
 
 ---
 
-## 1. System Architecture & Component Flow
+## 1. System Architecture & Flow
 
-The system operates as an asynchronous event-driven application. Incoming WebSocket frames from the market data provider are processed in-memory for instant strategy evaluation, while an asynchronous task periodically flushes batched ticks into DuckDB to minimize disk I/O.
-
-### Overall Data Architecture Diagram
+The streaming pipeline ingests real-time tick data using Fabric Eventstream, persists high-velocity events into an Eventhouse (KQL Database) for microsecond time-series queries, routes raw ticks to a Lakehouse Delta table for historical backtesting, and triggers real-time alerts via Fabric Activator.
 
 ```mermaid
 graph TD
-    subgraph External Services
-        MD[Market Data Feed\nPolygon.io / Alpaca WS]
-        BR[Broker API\nRobinhood / Alpaca REST]
-        AL[Alerting Service\nDiscord / Telegram Webhook]
+    subgraph External System
+        PY[Local Ingestion Worker / Python WS]
     end
 
-    subgraph Core Async Application Runtime
-        WS[Stream Listener\nwebsockets / asyncio]
-        Q[In-Memory Queue\nasyncio.Queue]
-        SE[Strategy & Risk Engine\nPolars / pandas-ta]
-        EX[Execution Router]
-        DBW[Database Batch Writer]
+    subgraph Fabric Real-Time Intelligence
+        ES[Fabric Eventstream\nCustom App / Kafka Endpoint]
+        EH[(Eventhouse / KQL DB\nReal-Time Ticks)]
+        ACT[Fabric Activator\nRisk & Signal Alerts]
     end
 
-    subgraph Embedded Storage Layer
-        DDB[(DuckDB Database\nmarket_data.duckdb)]
+    subgraph Fabric Data Engineering
+        LH[(Fabric Lakehouse\nOneLake Delta Tables)]
+        NB[Fabric PySpark Notebooks\nBacktesting & Indicator Math]
+        DF[Data Factory Pipelines\nOrchestration]
+    end
+
+    subgraph Fabric Visualization
+        PBI[Power BI Dashboard\nDirect Lake & KQL Querysets]
     end
 
     %% Flow Connections
-    MD -->|WebSocket Ticks| WS
-    WS -->|Non-blocking Push| Q
-    WS -->|In-Memory Candle Update| SE
-    SE -->|Signal Triggered| EX
-    EX -->|Place / Cancel Orders| BR
-    EX -->|Status Alerts| AL
-    Q -->|Pop Tick Batches| DBW
-    DBW -->|Batch INSERT / Parquet Copy| DDB
-    SE -.->|Zero-Copy Historical Query| DDB
+    PY -->|HTTP / Kafka Stream| ES
+    ES -->|In-flight Ingestion| EH
+    ES -->|Parquet Landing| LH
+    EH -->|KQL Anomaly Evaluation| ACT
+    LH -->|Delta Table Reads| NB
+    DF -->|Scheduled Job Runs| NB
+    EH -.->|Direct KQL Stream| PBI
+    LH -.->|Direct Lake Mode| PBI
 ```
 
 ---
 
-## 2. Technology Stack & Decision Matrix
+## 2. Fabric Technology Stack & Decision Matrix
 
-Each element in this stack was selected to maximize single-developer efficiency, minimize operational overhead, and maintain high performance without recurring cloud infrastructure costs.
-
-| Layer | Component | Selection | Primary Rationale & Justification |
-| :--- | :--- | :--- | :--- |
-| **Language** | Core Runtime | **Python 3.11+ (`asyncio`)** | Provides native asynchronous concurrency for high-throughput I/O (WebSockets, DB flushes, HTTP requests) without the complexity of multi-threading locks. |
-| **Persistence** | Embedded Database | **DuckDB** | In-process columnar OLAP database. Offers microsecond local query speeds, native zero-copy integration with Arrow/Polars, zero server maintenance, and simple single-file deployment (`.duckdb`). |
-| **Data Processing** | Analytics & TA | **Polars + pandas-ta** | Polars delivers Rust-backed multi-threaded execution for sliding-window calculation. Integrates natively with DuckDB queries via Apache Arrow without memory copying. |
-| **Market Data** | WebSocket API | **Polygon.io / Alpaca** | Provides dedicated low-latency WebSocket streaming endpoints for real-time US equity/crypto tick data and minute bars. |
-| **Brokerage** | Order Routing | **`robin_stocks` / Alpaca SDK** | Handles REST API authentication, order creation (market, limit, stop-loss), and portfolio balance queries. |
-| **Hosting** | PaaS Deployment | **Railway / Render** | Containerized hosting with zero infrastructure provisioning. Manages continuous background Python worker processes, environment secrets, and persistent disk mounts. |
-| **Monitoring** | Alerting | **Discord Webhooks** | Lightweight, zero-cost notification delivery for real-time order execution logs, daily P&L summaries, and runtime error alerts. |
+| Function | Fabric Artifact / Feature | Primary Selection Rationale |
+| :--- | :--- | :--- |
+| **Streaming Ingestion** | **Eventstream (RTI)** | Enterprise ingestion engine handling high-throughput JSON tick streams without managing Kafka broker infrastructure. |
+| **Real-Time Storage** | **Eventhouse & KQL Database** | Columnar storage optimized for rapid time-series aggregations, rolling moving averages, and sub-second windowing queries. |
+| **Historical Storage** | **Fabric Lakehouse (OneLake)** | Persists tick histories as Delta Lake tables (`.parquet`) for multi-year backtesting and open interoperability. |
+| **Compute & Backtesting** | **PySpark Notebooks** | Scalable distributed compute environment for executing backtests, parameter sweeps, and machine learning routines across historical datasets. |
+| **Alerts & Guardrails** | **Fabric Activator** | Event-driven trigger engine monitoring KQL streams to execute webhooks (Discord/Teams/REST API) on price spikes or stop-loss hits. |
+| **Orchestration** | **Data Factory Pipelines** | Manages workflow schedules, automated backtesting loops, and Delta table maintenance routines. |
+| **Visualization** | **Power BI (Direct Lake & KQL)** | Real-time reporting on portfolio P&L, system latency, and execution state with direct OneLake connectivity. |
 
 ---
 
-## 3. Financial & Operational Cost Breakdown
+## 3. Financial & Trial Resource Management
 
-| Category | Option / Tool | Estimated Monthly Cost | Notes / Considerations |
-| :--- | :--- | :--- | :--- |
-| **Market Data** | Polygon.io / Alpaca SIP | **$0 – $199 / mo** | Free tiers available for delayed/basic feeds; ~$29–$199/mo for real-time WebSockets with full US coverage. |
-| **Cloud Hosting** | Railway / Render (PaaS) | **$5 – $15 / mo** | Pay-as-you-go micro containers running 24/7 background worker processes. |
-| **Database** | DuckDB | **$0 / mo** | In-process single-file database embedded directly in your runtime. |
-| **Brokerage Fees** | Robinhood / Alpaca | **$0 / trade** | Zero-commission equity trades (watch out for bid-ask spread slippage). |
-| **Total Estimated Run Cost** | | **$5 – $214 / mo** | Scales based on the real-time market data requirements. |
+* **Trial Capacity Allocation:** All artifacts run within a 64-Capacity Unit (F64 equivalent) free trial workspace.
+* **Capacity Unit (CU) Optimization:** Eventstream derived streams can be paused during non-market hours to conserve capacity units.
+* **Estimated Production Cost (Post-Trial):** ~$0.36/CU-hour (Pay-As-You-Go F2 capacity (~$260/month) or F4 (~$520/month) depending on tick volume).
 
 ---
 
-## 4. Project Repository Structure
+## 4. Workspace & Repository Structure
 
 ```text
-trading-bot/
-├── config/
-│   ├── settings.py         # API keys, symbols, and strategy parameters
-│   └── secrets.env         # Environment variables (Git-ignored)
-├── engine/
-│   ├── stream_listener.py  # WebSocket connection manager
-│   ├── strategy.py         # Signal logic & indicator math via Polars/DuckDB
-│   ├── execution.py        # Order placement (robin_stocks / Alpaca)
-│   └── db_manager.py       # Async DuckDB batch writes & maintenance
-├── storage/
-│   └── market_data.duckdb  # Persistent DuckDB storage file
-├── Dockerfile              # Container spec for cloud deployment
-├── requirements.txt        # Python dependency manifest
-└── main.py                 # Async entry point initializing the event loop
+TradingBot_Fabric_Workspace/
+├── Eventstreams/
+│   └── es_market_ticks            # Main ingestion endpoint for tick streams
+├── Eventhouses/
+│   └── eh_trading_data            # Eventhouse container
+│       └── db_realtime_ticks      # KQL Database for sub-second queries
+├── Lakehouses/
+│   └── lh_market_history          # OneLake Delta Lake storage
+│       ├── Tables/
+│       │   ├── ticks_delta        # Historical raw tick data
+│       │   └── minute_candles     # Aggregated 1-minute candle bars
+├── Notebooks/
+│   ├── nb_pyspark_backtest.ipynb  # Strategy backtester & parameter optimizer
+│   └── nb_indicator_engine.ipynb  # Daily technical indicator generator
+├── DataPipelines/
+│   └── pl_daily_maintenance       # Pipeline for table compaction & maintenance
+├── Activators/
+│   └── act_risk_monitor           # Real-time alert triggers
+└── Dashboards/
+    └── rtd_portfolio_monitor      # Real-time KQL & Direct Lake Power BI report
 ```
 
 ---
 
-## 5. Implementation Plan & Milestones
+## 5. 35-Day Implementation Roadmap
 
 ```mermaid
 gantt
     dateFormat  YYYY-MM-DD
-    title Execution Roadmap
-    section Phase 1: Storage & Ingestion
-    Setup Project & DuckDB Schema     :a1, 2026-08-21, 3d
-    Implement Async WS & Batch Queue  :a2, after a1, 4d
+    title 35-Day Fabric Execution Roadmap
+    axisFormat  Day %d
 
-    section Phase 2: Engine & Risk Logic
-    Build Polars Indicator Engine     :b1, after a2, 4d
-    Implement Backtesting Sandbox     :b2, after b1, 5d
+    section Phase 1: RTI & Ingestion
+    Provision Workspace & Eventstream :w1_1, 2026-08-15, 3d
+    Configure Eventhouse & KQL Schema :w1_2, after w1_1, 4d
 
-    section Phase 3: Broker & Execution
-    Integrate Execution Router        :c1, after b2, 4d
-    Add Circuit Breakers & Alerts     :c2, after c1, 3d
+    section Phase 2: KQL & Risk Rules
+    Develop KQL Windowing Queries     :w2_1, after w1_2, 4d
+    Configure Fabric Activator Alerts :w2_2, after w2_1, 3d
 
-    section Phase 4: Cloud Deployment
-    Dockerize Container & Railway Setup: d1, after c2, 3d
-    Paper Trading & Live Soak Testing  : d2, after d1, 7d
+    section Phase 3: Lakehouse & PySpark
+    Route Delta Tables & Shortcuts    :w3_1, after w2_2, 3d
+    Build PySpark Backtesting Engine  :w3_2, after w3_1, 4d
+
+    section Phase 4: Pipelines & Power BI
+    Data Factory Orchestration Setup  :w4_1, after w3_2, 3d
+    Build Direct Lake Dashboard       :w4_2, after w4_1, 4d
+
+    section Phase 5: Offboarding
+    End-to-End Test & Code Export     :w5_1, after w4_2, 7d
 ```
 
-### Phase 1: Storage & Async Ingestion (Days 1–7)
-* Setup project environment, `requirements.txt`, and configuration loaders.
-* Initialize local `DuckDB` schema for `ticks`, `minute_candles`, and `execution_logs`.
-* Build asynchronous `stream_listener.py` using `asyncio` and `websockets`.
-* Implement the background batch writer using `asyncio.Queue` to flush ticks every 1 second.
+### Milestone Breakdown
 
-### Phase 2: Analytics & Backtesting (Days 8–16)
-* Write query utility functions to pull historical tick data directly from DuckDB into `Polars` DataFrames.
-* Build signal logic in `strategy.py` using `pandas-ta` indicators (e.g., RSI, Exponential Moving Averages, VWAP).
-* Run historical backtests on stored local DuckDB data to refine strategy parameters and slippage assumptions.
+#### Phase 1: Ingestion & Real-Time Intelligence (Days 1–7)
+* Provision a Fabric Capacity workspace under the 35-day trial.
+* Create `es_market_ticks` Eventstream item with a **Custom App** endpoint.
+* Create `eh_trading_data` Eventhouse and establish the `StockTicks` KQL table.
+* Modify the local Python producer script to stream WebSocket payloads directly into the Fabric Eventstream HTTP endpoint.
 
-### Phase 3: Order Routing & Safety Controls (Days 17–23)
-* Construct `execution.py` to handle authentication and order submission with the target broker API.
-* Implement strict risk rules: maximum position size limits, hard daily stop-loss triggers, and order retry logic.
-* Connect Discord/Telegram webhooks for push notifications on trade actions.
+#### Phase 2: KQL Analytics & Activator Rules (Days 8–14)
+* Write KQL queries for real-time technical indicators (VWAP, Exponential Moving Averages, RSI):
+  ```kusto
+  // 5-minute rolling VWAP in KQL
+  StockTicks
+  | where Timestamp > ago(1h)
+  | summarize 
+      VolumeWeightedPrice = sum(Price * Volume) / sum(Volume),
+      High = max(Price),
+      Low = min(Price),
+      Close = arg_max(Timestamp, Price)
+    by Symbol, bin(Timestamp, 5m)
+  ```
+* Connect **Fabric Activator** to monitor the KQL stream and trigger Webhook calls when prices break daily support/resistance bounds.
 
-### Phase 4: Containerization & Deployment (Days 24–33)
-* Write a multi-stage `Dockerfile` optimizing for Python 3.11 and DuckDB C extensions.
-* Provision a background worker on **Railway** (or **Render**) with a persistent volume attached for the DuckDB storage file.
-* Run a 7-day soak test in **Paper Trading Mode** to verify WebSocket reconnect behavior, data consistency, and memory usage under long-term operation.
+#### Phase 3: Lakehouse & PySpark Engine (Days 15–21)
+* Add a **Lakehouse Destination** to `es_market_ticks` to auto-persist incoming streams as Delta Lake tables in OneLake.
+* Open a PySpark Notebook (`nb_pyspark_backtest.ipynb`) to read Delta tables, execute historical backtests, and store backtest metric results:
+  ```python
+  from pyspark.sql import functions as F
+
+  df_ticks = spark.read.table("lh_market_history.ticks_delta")
+  df_candles = df_ticks.groupBy("symbol", F.window("timestamp", "1 minute")).agg(
+      F.first("price").alias("open"),
+      F.max("price").alias("high"),
+      F.min("price").alias("low"),
+      F.last("price").alias("close"),
+      F.sum("volume").alias("volume")
+  )
+  df_candles.write.format("delta").mode("append").saveAsTable("lh_market_history.minute_candles")
+  ```
+
+#### Phase 4: Pipelines & Real-Time Visualization (Days 22–28)
+* Build a **Data Factory Pipeline** to schedule notebook execution and run table OPTIMIZE/VACUUM commands.
+* Build a **Real-Time Dashboard** connected directly to the KQL Database for microsecond streaming chart refreshes.
+
+#### Phase 5: Verification & Offboarding (Days 29–35)
+* Benchmark query latency and cost efficiency between the local DuckDB engine and Fabric Eventhouse.
+* Export all PySpark notebooks (`.ipynb`), KQL query files (`.kql`), and Power BI templates (`.pbit`) to Git prior to trial expiration.
 
 ---
 
 ## 6. Key Risks & Mitigation Controls
 
-1. **Process Crash State Recovery:**
-   * *Risk:* Server restart causes temporary loss of in-memory sliding window candles.
-   * *Mitigation:* On boot, the strategy engine runs a startup query against DuckDB (`SELECT * FROM minute_candles ORDER BY timestamp DESC LIMIT 200`) to rehydrate state instantly.
-2. **Database Concurrency Locks:**
-   * *Risk:* Concurrent reads (analytics/dashboard) lock out the async background writer.
-   * *Mitigation:* Configure DuckDB write operations within single-thread queues, and force external visualization connections to open DuckDB in `read_only=True` mode.
-3. **API Rate Limits & Disconnections:**
-   * *Risk:* Broker API throttling or silent WebSocket drops.
-   * *Mitigation:* Wrap all API calls with exponential backoff retries and implement ping/pong heartbeats to force WebSocket reconnects when connections stall.
+1. **Trial Expiration & Data Loss:**
+   * *Risk:* Access to the Fabric workspace terminates on Day 35.
+   * *Mitigation:* Ensure OneLake Delta tables are exported or synchronized to an external Azure Data Lake Storage Gen2 (ADLS Gen2) account or local storage before the trial ends.
+2. **KQL Concurrency & Rate Limits:**
+   * *Risk:* Frequent streaming writes lock table schemas.
+   * *Mitigation:* Use Eventstream's built-in ingestion buffering to batch raw events before landing them in the KQL table.
+3. **Data Parity Verification:**
+   * *Risk:* Ingestion discrepancies between the local DuckDB worker and Fabric Eventstream.
+   * *Mitigation:* Run daily checksum queries comparing record counts between DuckDB (`SELECT count(*) FROM ticks`) and KQL (`StockTicks | count`).
