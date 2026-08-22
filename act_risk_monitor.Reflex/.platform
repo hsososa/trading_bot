@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Reflex",
+    "displayName": "act_risk_monitor"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "7a239e4a-4306-ba26-43cb-f6c32592d07c"
+  }
+}

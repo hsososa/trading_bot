@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Eventstream",
+    "displayName": "es_market_ticks"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "8116b42f-6f59-8246-48c6-557bf540f5a4"
+  }
+}

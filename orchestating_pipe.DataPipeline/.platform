@@ -1,12 +1,11 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
-    "type": "Eventhouse",
-    "displayName": "trades",
-    "description": "trades"
+    "type": "DataPipeline",
+    "displayName": "orchestating_pipe"
   },
   "config": {
     "version": "2.0",
-    "logicalId": "009352a3-dc69-8437-442a-34dc873d9c49"
+    "logicalId": "e4366065-7ed6-99ff-4808-9167f31c29b1"
   }
 }

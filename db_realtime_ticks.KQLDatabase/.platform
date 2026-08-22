@@ -1,11 +1,11 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
-    "type": "Eventstream",
-    "displayName": "test"
+    "type": "KQLDatabase",
+    "displayName": "db_realtime_ticks"
   },
   "config": {
     "version": "2.0",
-    "logicalId": "8116b42f-6f59-8246-48c6-557bf540f5a4"
+    "logicalId": "08589ddb-f2d3-a053-4618-61cc5fc90134"
   }
 }
